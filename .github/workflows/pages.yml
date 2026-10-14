@@ -1,0 +1,52 @@
+name: Publicar Grilla JOC
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validar HTML y JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          import re
+          html=Path('index.html').read_text(encoding='utf-8')
+          class Check(HTMLParser):
+              ids=[]
+              def handle_starttag(self, tag, attrs):
+                  for name,value in attrs:
+                      if name=='id': self.ids.append(value)
+          parser=Check();parser.feed(html)
+          assert len(parser.ids)==len(set(parser.ids)), 'IDs duplicados'
+          scripts=re.findall(r'<script>(.*?)</script>',html,re.S)
+          assert len(scripts)==1, 'Se esperaba un runtime autónomo'
+          Path('/tmp/grilla-joc-check.js').write_text(scripts[0],encoding='utf-8')
+          assert 'GRILLA_JOC_PROJECT_V1' in html
+          PY
+          node --check /tmp/grilla-joc-check.js
+      - uses: actions/configure-pages@v5
+      - name: Preparar sitio estático
+        run: |
+          mkdir -p _site
+          cp index.html _site/index.html
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4

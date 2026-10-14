@@ -1,0 +1,5 @@
+.DS_Store
+*_INVENTARIO*.json
+*_BORRADOR*.json
+*_BORRADORES*.json
+_site/
